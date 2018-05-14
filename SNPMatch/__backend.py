@@ -41,8 +41,9 @@ class ChromosomeSNPMap:
 		This object contains lists for every chromosome in our input samples.
 		Each discrete SNP from our MAP file will be sorted into dict key/val.
 		"""
-		self.mapping = {}
+
 		## Create an entry for each chromosome
+		self.mapping = {}
 		for i in range(0,23):
 			self.mapping['chr{0}'.format(i)]=[]
 		self.mapping['chrX'] = []

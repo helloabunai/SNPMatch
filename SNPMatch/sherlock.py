@@ -74,14 +74,13 @@ class SNPMatch:
 		## Second stage: split map file into chromosomes we just created
 		self.split_orderedmap()
 		## Third stage: scrape report data so we can join everything together
-		self.processed_alleles = self.scrape_report()
+		self.processed_alleles = self.scrape_alleles()
 		## Fourth stage: identify all the SNP data from our PED file
-		self.processed_samples = self.scrape_mutations()
+		self.processed_samples = self.scrape_samples()
 		## Fifth stage: combine information so we can split our PED file into chromosome
 		self.match_chromosome_snp()
 		## Sixth stage: convert stored information into our split PED files
 		self.split_mutation_data()
-
 
 	def snp_map_order(self):
 
@@ -128,7 +127,7 @@ class SNPMatch:
 			processed_snpcount += len(snp_list)
 		log.info('{}{}{}{}{}'.format(clr.green, 'snpm__ ', clr.end, 'Split *.MAP SNP total: ', processed_snpcount))
 
-	def scrape_report(self):
+	def scrape_alleles(self):
 
 		log.info('{}{}{}{}'.format(clr.green, 'snpm__ ', clr.end, 'Combining sample SNP/allele information...'))
 		## I/O data for reportfile
@@ -158,9 +157,9 @@ class SNPMatch:
 
 		return processed_alleles
 
-	def scrape_mutations(self):
+	def scrape_samples(self):
 
-		log.info('{}{}{}{}'.format(clr.green, 'snpm__ ', clr.end, 'Gathering sample mutation information...'))
+		log.info('{}{}{}{}'.format(clr.green, 'snpm__ ', clr.end, 'Gathering individual sample information...'))
 		## I/O for pedfile
 		ped_file = self.infiles[0][0]
 
@@ -209,66 +208,50 @@ class SNPMatch:
 		log.info('{}{}{}{}'.format(clr.green, 'snpm__ ', clr.end, 'Gathering sample mutation information...'))
 
 		## Iterate over all chromosomes we have data for...
-		# for chromosome, snp_list in self.ordered_snpmap.mapping.iteritems():
-		# 	print '\n\n\n\n\n\n\n\n\nWorking on Chromosome: {}'.format(chromosome)
-		# 	print 'number of SNPs in this chr: {}'.format(len(snp_list))
-		#
-		# 	## Loop over all alleles (with associated sample_ID and mutation values)
-		# 	## Loop over all snps present in the current chromosome
-		# 	## If the current SNPs match, this SNP is present in this chromosome
-		# 	## Identify all samples where this is the case, and append information to mapping
-		# 	## i.e. create a list of SNP on <curr_chromosome> present in <sample_id>, and their value
-		# 	for mutation in self.processed_alleles:
-		# 		for chr_snp in snp_list:
-		# 			if mutation.get_snpname() in chr_snp.get_snpname():
-		# 				for individual in self.processed_samples:
-		# 					if individual.get_sampleid() == mutation.get_sampleid():
-		# 						target_info = (mutation.get_snpname(),
-		# 									   [mutation.get_allele1_fw(), mutation.get_allele2_fw()])
-		# 						individual.append(chromosome, target_info)
-
-		## testing only on chr Y
-		chromosome = 'chrY'
-		snp_list = self.ordered_snpmap.mapping[chromosome]
-
-		for mutation in self.processed_alleles:
-			for chr_snp in snp_list:
-				if mutation.get_snpname() in chr_snp.get_snpname():
-					for individual in self.processed_samples:
-						if individual.get_sampleid() == mutation.get_sampleid():
-							target_info = (mutation.get_snpname(),
-										   [mutation.get_allele1_fw(), mutation.get_allele2_fw()])
-							individual.append(chromosome, target_info)
+		for chromosome, snp_list in self.ordered_snpmap.mapping.iteritems():
+			## Loop over all alleles (with associated sample_ID and mutation values)
+			## Loop over all snps present in the current chromosome
+			## If the current SNPs match, this SNP is present in this chromosome
+			## Identify all samples where this is the case, and append information to mapping
+			## i.e. create a list of SNP on <curr_chromosome> present in <sample_id>, and their value
+			for mutation in self.processed_alleles:
+				for chr_snp in snp_list:
+					if mutation.get_snpname() in chr_snp.get_snpname():
+						for individual in self.processed_samples:
+							if individual.get_sampleid() == mutation.get_sampleid():
+								target_info = (mutation.get_snpname(),
+											   [mutation.get_allele1_fw(), mutation.get_allele2_fw()])
+								individual.append(chromosome, target_info)
 
 	def split_mutation_data(self):
 
 		log.info('{}{}{}{}'.format(clr.green, 'snpm__ ', clr.end, 'Outputting chromosome split PED files...'))
 
+		mapping_outputs = {}
+		## Create files for each chromosome
+		for i in range(0,23):
+			mapping_outputs['chr{0}_dir'.format(i)]=os.path.join(self.output_target,'chr{0}.ped')
+		mapping_outputs['chrX_dir'] = os.path.join(self.output_target,'chrX.ped')
+		mapping_outputs['chrY_dir'] = os.path.join(self.output_target,'chrY.ped')
+
 		## Loop over all samples we have, output to the respective chromosome PED file...
 		for sample in self.processed_samples:
-			for k, v in sample.mapping.iteritems():
-				print k, v
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+			## Create the string of all SNP base pair mutation values in this chromosome
+			mutation_string = ''
+			for chr_key, snplist_val in sample.mapping.iteritems():
+				for snp_tuple in snplist_val:
+					mutation_string += '{}\t{}\t'.format(snp_tuple[1][0], snp_tuple[1][1])
+				desired_output = '{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(sample.get_familyid(),
+																   sample.get_sampleid(),
+																   sample.get_mother(),
+																   sample.get_father(),
+																   sample.get_sex(),
+																   sample.get_phenotype(),
+																   mutation_string)
+				desired_key = '{}_dir'.format(chr_key)
+				desired_path = mapping_outputs[desired_key]
+				with open(desired_path, 'a') as chr_outfi:
+					chr_outfi.write(desired_output)
 
 def main():
 	try:
