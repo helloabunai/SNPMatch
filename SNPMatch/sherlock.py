@@ -246,7 +246,8 @@ class SNPMatch:
 
 		## Loop over all samples we have, output to the respective chromosome PED file...
 		for sample in self.processed_samples:
-			print 'hi'
+			for k, v in sample.mapping.iteritems():
+				print k, v
 
 
 
