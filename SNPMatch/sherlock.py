@@ -253,12 +253,19 @@ class SNPMatch:
 		PROC_ALLELE = self.processed_alleles
 		PROC_SAMPLE = self.processed_samples
 
+		## wrap in KeyboardInterrupt exception
 		## launch a pool of processes with the specified amount of thread (or default == max)
 		## run the job through worker function, pass iterator of our chromosome/mapping data
 		processor_pool = multiprocessing.Pool(self.threads)
-		processor_pool.imap(worker, self.ordered_snpmap.mapping.iteritems())
-		processor_pool.close()
-		processor_pool.join()
+		try:
+			processor_pool.imap(worker, self.ordered_snpmap.mapping.iteritems())
+		except KeyboardInterrupt:
+			log.info('{}{}{}{}'.format(clr.red,'snpm__ ',clr.end,'Caught KeyboardInterrupt. Killing worker {}'.format(os.getpid())))
+			processor_pool.terminate()
+			processor_pool.join()
+		else:
+			processor_pool.close()
+			processor_pool.join()
 
 		## inform user we have closed the worker pool
 		log.info('{}{}{}{}'.format(clr.green, 'snpm__ ', clr.end, 'Done, closing processor worker pool!'))
