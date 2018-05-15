@@ -136,7 +136,7 @@ class SNPMatch:
 			for map_entry in mapfi.read().splitlines():
 				dat_split = map_entry.split()
 				current_snp = indvSNP(chromosome=dat_split[0], snp_name=dat_split[1],
-									  col3=dat_split[2], col4=dat_split[3])
+					col3=dat_split[2], col4=dat_split[3])
 				preprocess_storage.append(current_snp)
 
 		## all SNP processed, split into respective chromosome vector
@@ -161,7 +161,7 @@ class SNPMatch:
 			with open(target_output, 'w') as chrmapfi:
 				for snp in snp_list:
 					chrmapfi.write('{}\t{}\t{}\t{}\n'.format(snp.get_chr(), snp.get_snpname(),
-															 snp.get_col3(), snp.get_col4()))
+						snp.get_col3(), snp.get_col4()))
 			processed_snpcount += len(snp_list)
 		log.info('{}{}{}{}{}'.format(clr.green, 'snpm__ ', clr.end, 'Split *.MAP SNP total: ', processed_snpcount))
 
@@ -190,7 +190,7 @@ class SNPMatch:
 		## add allele to processed_alleles for this instance
 		for entry in split_input:
 			allele_object = indvAllele(snp_name=entry[0], sample_id=entry[1],
-									   allele1_fw=entry[2], allele2_fw=entry[3])
+				allele1_fw=entry[2], allele2_fw=entry[3])
 			processed_alleles.append(allele_object)
 
 		return processed_alleles
@@ -234,9 +234,9 @@ class SNPMatch:
 		## Turn tuple into an object for the sample, append to list of all samples in instance
 		for current_individual in preprocessed_samples:
 			sample_object = indvSample(family_id=current_individual[0][0], sample_id=current_individual[0][1],
-									   mother=current_individual[0][2], father=current_individual[0][3],
-									   sex=current_individual[0][4], phenotype=current_individual[0][5],
-									   mutation_list=current_individual[1])
+				mother=current_individual[0][2], father=current_individual[0][3],
+				sex=current_individual[0][4], phenotype=current_individual[0][5],
+				mutation_list=current_individual[1])
 			processed_samples.append(sample_object)
 
 		return processed_samples
@@ -281,13 +281,14 @@ class SNPMatch:
 			for chr_key, snplist_val in sample.mapping.iteritems():
 				for snp_tuple in snplist_val:
 					mutation_string += '{}\t{}\t'.format(snp_tuple[1][0], snp_tuple[1][1])
-				desired_output = '{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(sample.get_familyid(),
-																   sample.get_sampleid(),
-																   sample.get_mother(),
-																   sample.get_father(),
-																   sample.get_sex(),
-																   sample.get_phenotype(),
-																   mutation_string)
+				desired_output = '{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+					sample.get_familyid(),
+					sample.get_sampleid(),
+					sample.get_mother(),
+					sample.get_father(),
+					sample.get_sex(),
+					sample.get_phenotype(),
+					mutation_string)
 				desired_key = '{}_dir'.format(chr_key)
 				desired_path = mapping_outputs[desired_key]
 				with open(desired_path, 'a') as chr_outfi:
