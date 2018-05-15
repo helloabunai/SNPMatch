@@ -7,6 +7,7 @@ import os
 import sys
 import argparse
 import logging as log
+import multiprocessing
 from .__backend import check_input
 from .__backend import mkdir_force
 from .__backend import grouped
@@ -33,7 +34,40 @@ class clr:
 	underline = '\033[4m'
 	end = '\033[0m'
 
-## actual script
+## global
+THREADS = multiprocessing.cpu_count()
+PROC_ALLELE = []
+PROC_SAMPLE = []
+
+# multiprocessing worker function
+def worker(input_iterable):
+
+	"""
+	Function to iterate over information within chromosome entry in our SNP mapping
+	Must be defined at top-level so it can be pickled/serialised for multiprocessing
+	:param input_iterable: current iteration of snpmap mapping
+	:return: None
+	"""
+
+	# Loop over all alleles (with associated sample_ID and mutation values)
+	# Loop over all snps present in the current chromosome
+	# If the current SNPs match, this SNP is present in this chromosome
+	# Identify all samples where this is the case, and append information to mapping
+	# i.e. create a list of SNP on <curr_chromosome> present in <sample_id>, and their value
+	chrom, snp_list = input_iterable
+	log.info('{}{}{}Worker ID {} processing {}...'.format(clr.yellow, 'snpm__ ', clr.end, os.getpid(), chrom))
+	for mutation in PROC_ALLELE:
+		for chr_snp in snp_list:
+			if mutation.get_snpname() in chr_snp.get_snpname():
+				for individual in PROC_SAMPLE:
+					if individual.get_sampleid() == mutation.get_sampleid():
+						target_info = (mutation.get_snpname(),
+									   [mutation.get_allele1_fw(), mutation.get_allele2_fw()])
+						individual.append(chrom, target_info)
+	log.info('{}{}{}Worker ID {} finished {}!'.format(clr.green, 'snpm__ ', clr.end, os.getpid(), chrom))
+	return 1
+
+## actual program logic
 class SNPMatch:
 	def __init__(self):
 		"""
@@ -47,6 +81,7 @@ class SNPMatch:
 		self.parser.add_argument('-p', '--ped', help='PED file. Contains your samples and their respective SNP data.', nargs=1, required=True)
 		self.parser.add_argument('-r', '--report', help='FinalReport file from your GIGAMUGA run.', nargs=1, required=True)
 		self.parser.add_argument('-m', '--map', help='MAP file containing SNPs and positions.', nargs=1, required=True)
+		self.parser.add_argument('-t', '--threads', help='Number of CPU threads to use when mapping chromosome data. Default is system max.', type=int, choices=xrange(1, THREADS+1), default=THREADS)
 		self.parser.add_argument('-o', '--output', help='Output path. Specify a directory you wish output to be directed towards.', metavar='output', nargs=1, required=True)
 		self.args = self.parser.parse_args()
 
@@ -57,6 +92,9 @@ class SNPMatch:
 			log.info('{}{}{}{}'.format(clr.bold, 'snpm__ ', clr.end, 'alastair.maxwell@glasgow.ac.uk\n'))
 		else:
 			log.basicConfig(format='%(message)s')
+
+		## CPU threads
+		self.threads = self.args.threads
 
 		## Input files, check exist/format
 		self.infiles = [(self.args.ped[0], "PED"), (self.args.report[0], "TXT"), (self.args.map[0], "MAP")]
@@ -205,23 +243,25 @@ class SNPMatch:
 
 	def match_chromosome_snp(self):
 
+		## inform how multi-threaded this instance will be
 		log.info('{}{}{}{}'.format(clr.green, 'snpm__ ', clr.end, 'Gathering sample mutation information...'))
+		log.info('{}{}{}{}'.format(clr.yellow, 'snpm__ ', clr.end, 'Launching {} process worker jobs...'.format(self.threads)))
 
-		## Iterate over all chromosomes we have data for...
-		for chromosome, snp_list in self.ordered_snpmap.mapping.iteritems():
-			## Loop over all alleles (with associated sample_ID and mutation values)
-			## Loop over all snps present in the current chromosome
-			## If the current SNPs match, this SNP is present in this chromosome
-			## Identify all samples where this is the case, and append information to mapping
-			## i.e. create a list of SNP on <curr_chromosome> present in <sample_id>, and their value
-			for mutation in self.processed_alleles:
-				for chr_snp in snp_list:
-					if mutation.get_snpname() in chr_snp.get_snpname():
-						for individual in self.processed_samples:
-							if individual.get_sampleid() == mutation.get_sampleid():
-								target_info = (mutation.get_snpname(),
-											   [mutation.get_allele1_fw(), mutation.get_allele2_fw()])
-								individual.append(chromosome, target_info)
+		## set this instance's processed_alleles/samples to globals so the top-level worker function can access
+		## cant pass as arguments due to requirement of passing iterator for chromosome(s)
+		global PROC_ALLELE; global PROC_SAMPLE
+		PROC_ALLELE = self.processed_alleles
+		PROC_SAMPLE = self.processed_samples
+
+		## launch a pool of processes with the specified amount of thread (or default == max)
+		## run the job through worker function, pass iterator of our chromosome/mapping data
+		processor_pool = multiprocessing.Pool(self.threads)
+		processor_pool.imap(worker, self.ordered_snpmap.mapping.iteritems())
+		processor_pool.close()
+		processor_pool.join()
+
+		## inform user we have closed the worker pool
+		log.info('{}{}{}{}'.format(clr.green, 'snpm__ ', clr.end, 'Done, closing processor worker pool!'))
 
 	def split_mutation_data(self):
 
