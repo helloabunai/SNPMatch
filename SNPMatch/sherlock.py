@@ -47,7 +47,7 @@ def worker(input_iterable):
 				for individual in PROC_SAMPLE:
 					if individual.get_sampleid() == mutation.get_sampleid():
 						target_info = (mutation.get_snpname(),
-									   [mutation.get_allele1_fw(), mutation.get_allele2_fw()])
+							[mutation.get_allele1_fw(), mutation.get_allele2_fw()])
 						individual.append(chrom, target_info)
 	log.info('{}{}{}Worker ID {} finished {}!'.format(clr.green, 'snpm__ ', clr.end, os.getpid(), chrom))
 	return 1
