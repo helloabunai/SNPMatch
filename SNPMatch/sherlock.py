@@ -270,7 +270,7 @@ class SNPMatch:
 		mapping_outputs = {}
 		## Create files for each chromosome
 		for i in range(0,23):
-			mapping_outputs['chr{0}_dir'.format(i)]=os.path.join(self.output_target,'chr{0}.ped')
+			mapping_outputs['chr{0}_dir'.format(i)]=os.path.join(self.output_target,'chr{0}.ped'.format(i))
 		mapping_outputs['chrX_dir'] = os.path.join(self.output_target,'chrX.ped')
 		mapping_outputs['chrY_dir'] = os.path.join(self.output_target,'chrY.ped')
 
