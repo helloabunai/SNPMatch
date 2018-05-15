@@ -17,6 +17,7 @@ from .__backend import mkdir_force
 from .__backend import indvSNP
 from .__backend import indvAllele
 from .__backend import indvSample
+from .__backend import indvChromosome
 from .__backend import ChromosomeSNPMap
 
 ## global
@@ -34,20 +35,13 @@ def worker(input_iterable):
 	:return: None
 	"""
 
+	## Get input from current iteration of snpmap
+	## this instance of worker() on a discrete processor will run independently
 	chrom, snp_list = input_iterable
-	#log.info('{}{}{}Worker (ID: {}) processing {}...'.format(clr.yellow, 'snpm__ ', clr.end, os.getpid(), chrom))
-	if not chrom == 'chrY':
-		#log.info('{}{}{}Worker (ID: {}) finished {}!'.format(clr.green, 'snpm__ ', clr.end, os.getpid(), chrom))
-		return {chrom: 'NotchrY'}
+	log.info('{}{}{}Worker (ID: {}) processing {}...'.format(clr.yellow, 'snpm__ ', clr.end, os.getpid(), chrom))
 
-	## current chromosome results
+	## current chromosome results dictionary
 	current_workload = {'Chromosome': chrom}
-
-	# Loop over all alleles (with associated sample_ID and mutation values)
-	# Loop over all snps present in the current chromosome
-	# If the current SNPs match, this SNP is present in this chromosome
-	# Identify all samples where this is the case, and append information to mapping
-	# i.e. create a list of SNP on <curr_chromosome> present in <sample_id>, and their value
 
 	## Populate this chromosome's dictionary with
 	## key == current sample
@@ -55,6 +49,11 @@ def worker(input_iterable):
 	for individual in PROC_SAMPLE:
 		current_workload[individual.get_sampleid()] = []
 
+	# Loop over all alleles (with associated sample_ID and mutation values)
+	# Loop over all snps present in the current chromosome
+	# If the current SNPs match, this SNP is present in this chromosome
+	# Identify all samples where this is the case, and append information to mapping
+	# i.e. create a list of SNP on <curr_chromosome> present in <sample_id>, and their value
 	for mutation in PROC_ALLELE:
 		for chr_snp in snp_list:
 			if mutation.get_snpname() in chr_snp.get_snpname():
@@ -118,6 +117,7 @@ class SNPMatch:
 		## Fifth stage: combine information so we can split our PED file into chromosome
 		self.match_chromosome_snp()
 		## Sixth stage: convert stored information into our split PED files
+		self.matched_resultobjects = []
 		self.split_mutation_data()
 
 	def snp_map_order(self):
@@ -268,8 +268,11 @@ class SNPMatch:
 			processor_pool.close()
 			processor_pool.join()
 
-		for item in results:
-			print item
+		## Set results into their own objects
+		for results_dict in results:
+			result_object = indvChromosome(results_dict['Chromosome'])
+			result_object.set_results(results_dict)
+			self.matched_resultobjects.append(result_object)
 
 		## inform user we have closed the worker pool
 		log.info('{}{}{}{}'.format(clr.green, 'snpm__ ', clr.end, 'Done, closing processor worker pool!'))
@@ -285,47 +288,43 @@ class SNPMatch:
 		mapping_outputs['chrX_dir'] = os.path.join(self.output_target,'chrX.ped')
 		mapping_outputs['chrY_dir'] = os.path.join(self.output_target,'chrY.ped')
 
-		for chromosome, snp_list in self.ordered_snpmap.mapping.iteritems():
-		#	print '\n\n\n\n'
-		#	print '>>>>>>>>>>>>>>>>>>>>'
-		#	print chromosome
+		## For every results object in our instance-wide list
+		for sample_result in self.matched_resultobjects:
 
-			target_key = '{}_dir'.format(chromosome)
-			target_path = mapping_outputs[target_key]
-		#
-		# 	print 'target path: ', target_path
-		#
-		# 	for sample in self.processed_samples:
-		# 		if chromosome == 'chrY':
-		# 			print 'Working on sample: ', sample.get_sampleid()
-		# 			print 'Sample Mapping for {}: '.format(chromosome)
+			chromosome_sample_strings = []
 
-		# ## Loop over all samples we have, output to the respective chromosome PED file...
-		# for sample in self.processed_samples:
-		# 	print 'Working on sample: ', sample.get_sampleid()
-		# 	## Create the string of all SNP base pair mutation values in this chromosome
-		# 	mutation_string = ''
-		# 	for chr_key, snplist_val in sample.mapping.iteritems():
-		# 		print 'chr_key', chr_key
-		# 		print len(snplist_val)
-		# 		for snp_tuple in snplist_val:
-		# 			print 'tuple: ', snp_tuple
-		# 			mutation_string += '{}\t{}\t'.format(snp_tuple[1][0], snp_tuple[1][1])
-		#
-		# 		print 'Mutation string: ', mutation_string
-		#
-		# 		desired_output = '{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-		# 			sample.get_familyid(),
-		# 			sample.get_sampleid(),
-		# 			sample.get_mother(),
-		# 			sample.get_father(),
-		# 			sample.get_sex(),
-		# 			sample.get_phenotype(),
-		# 			mutation_string)
-		# 		desired_key = '{}_dir'.format(chr_key)
-		# 		desired_path = mapping_outputs[desired_key]
-		# 		with open(desired_path, 'a') as chr_outfi:
-		# 			chr_outfi.write(desired_output)
+			## Loop over every sample in our results dictionary:
+			for sample_key, snp_list  in sample_result.get_results():
+				sample_string = ''
+
+				## build intro details for this sample
+				for sample in self.processed_samples:
+					if sample.get_sampleid() == sample_key:
+						sample_string += '{}\t{}\t{}\t{}\t{}\t{}'.format(
+							sample.get_familyid(),
+							sample.get_sampleid(),
+							sample.get_mother(),
+							sample.get_father(),
+							sample.get_sex(),
+							sample.get_phenotype()
+						)
+
+				## append sample string with mutation string
+				for snp_tuple in snp_list:
+					sample_string += '{}\t{}\t'.format(snp_tuple[1][0], snp_tuple[1][1])
+
+				sample_string += '\n'
+				chromosome_sample_strings.append(sample_string)
+
+			## Target the correct directories
+			chrom = sample_result.get_chromosome()
+			desired_key = '{}_dir'.format(chrom)
+			target_output = mapping_outputs[desired_key]
+
+			## output the chromosome split ped file
+			with open(target_output, 'w') as chr_outfi:
+				for sample in chromosome_sample_strings:
+					chr_outfi.write(sample)
 
 def main():
 	try:

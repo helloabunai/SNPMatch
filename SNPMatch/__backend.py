@@ -162,3 +162,14 @@ class indvSample:
 		return self.mapping
 	def get_indv_mapping(self, chrom):
 		return self.mapping[chrom]
+
+class indvChromosome:
+	def __init__(self, chrom):
+		self.chromosome = chrom
+		self.results = {}
+	def set_results(self, in_dict):
+		self.results = in_dict
+	def get_results(self):
+		return self.results
+	def get_chromosome(self):
+		return self.chromosome
