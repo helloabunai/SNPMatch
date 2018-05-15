@@ -115,9 +115,9 @@ class SNPMatch:
 		## Fourth stage: identify all the SNP data from our PED file
 		self.processed_samples = self.scrape_samples()
 		## Fifth stage: combine information so we can split our PED file into chromosome
+		self.matched_resultobjects = []
 		self.match_chromosome_snp()
 		## Sixth stage: convert stored information into our split PED files
-		self.matched_resultobjects = []
 		self.split_mutation_data()
 
 	def snp_map_order(self):
