@@ -158,3 +158,7 @@ class indvSample:
 		return self.phenotype
 	def get_mutationlist(self):
 		return self.mutation_list
+	def get_mapping(self):
+		return self.mapping
+	def get_indv_mapping(self, chrom):
+		return self.mapping[chrom]

@@ -34,13 +34,27 @@ def worker(input_iterable):
 	:return: None
 	"""
 
+	chrom, snp_list = input_iterable
+	#log.info('{}{}{}Worker (ID: {}) processing {}...'.format(clr.yellow, 'snpm__ ', clr.end, os.getpid(), chrom))
+	if not chrom == 'chrY':
+		#log.info('{}{}{}Worker (ID: {}) finished {}!'.format(clr.green, 'snpm__ ', clr.end, os.getpid(), chrom))
+		return {chrom: 'NotchrY'}
+
+	## current chromosome results
+	current_workload = {'Chromosome': chrom}
+
 	# Loop over all alleles (with associated sample_ID and mutation values)
 	# Loop over all snps present in the current chromosome
 	# If the current SNPs match, this SNP is present in this chromosome
 	# Identify all samples where this is the case, and append information to mapping
 	# i.e. create a list of SNP on <curr_chromosome> present in <sample_id>, and their value
-	chrom, snp_list = input_iterable
-	log.info('{}{}{}Worker ID {} processing {}...'.format(clr.yellow, 'snpm__ ', clr.end, os.getpid(), chrom))
+
+	## Populate this chromosome's dictionary with
+	## key == current sample
+	## value == list, which will have all SNPs appended to it
+	for individual in PROC_SAMPLE:
+		current_workload[individual.get_sampleid()] = []
+
 	for mutation in PROC_ALLELE:
 		for chr_snp in snp_list:
 			if mutation.get_snpname() in chr_snp.get_snpname():
@@ -48,9 +62,10 @@ def worker(input_iterable):
 					if individual.get_sampleid() == mutation.get_sampleid():
 						target_info = (mutation.get_snpname(),
 							[mutation.get_allele1_fw(), mutation.get_allele2_fw()])
-						individual.append(chrom, target_info)
-	log.info('{}{}{}Worker ID {} finished {}!'.format(clr.green, 'snpm__ ', clr.end, os.getpid(), chrom))
-	return 1
+						current_workload[individual.get_sampleid()].append(target_info)
+
+	log.info('{}{}{}Worker (ID: {}) finished {}!'.format(clr.green, 'snpm__ ', clr.end, os.getpid(), chrom))
+	return current_workload
 
 ## actual program logic
 class SNPMatch:
@@ -237,13 +252,14 @@ class SNPMatch:
 		global PROC_ALLELE; global PROC_SAMPLE
 		PROC_ALLELE = self.processed_alleles
 		PROC_SAMPLE = self.processed_samples
+		results = None
 
 		## wrap in KeyboardInterrupt exception
 		## launch a pool of processes with the specified amount of thread (or default == max)
 		## run the job through worker function, pass iterator of our chromosome/mapping data
 		processor_pool = multiprocessing.Pool(self.threads)
 		try:
-			processor_pool.imap(worker, self.ordered_snpmap.mapping.iteritems())
+			results = processor_pool.imap(worker, self.ordered_snpmap.mapping.iteritems())
 		except KeyboardInterrupt:
 			log.info('{}{}{}{}'.format(clr.red,'snpm__ ',clr.end,'Caught KeyboardInterrupt. Killing worker {}'.format(os.getpid())))
 			processor_pool.terminate()
@@ -251,6 +267,9 @@ class SNPMatch:
 		else:
 			processor_pool.close()
 			processor_pool.join()
+
+		for item in results:
+			print item
 
 		## inform user we have closed the worker pool
 		log.info('{}{}{}{}'.format(clr.green, 'snpm__ ', clr.end, 'Done, closing processor worker pool!'))
@@ -266,25 +285,47 @@ class SNPMatch:
 		mapping_outputs['chrX_dir'] = os.path.join(self.output_target,'chrX.ped')
 		mapping_outputs['chrY_dir'] = os.path.join(self.output_target,'chrY.ped')
 
-		## Loop over all samples we have, output to the respective chromosome PED file...
-		for sample in self.processed_samples:
-			## Create the string of all SNP base pair mutation values in this chromosome
-			mutation_string = ''
-			for chr_key, snplist_val in sample.mapping.iteritems():
-				for snp_tuple in snplist_val:
-					mutation_string += '{}\t{}\t'.format(snp_tuple[1][0], snp_tuple[1][1])
-				desired_output = '{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
-					sample.get_familyid(),
-					sample.get_sampleid(),
-					sample.get_mother(),
-					sample.get_father(),
-					sample.get_sex(),
-					sample.get_phenotype(),
-					mutation_string)
-				desired_key = '{}_dir'.format(chr_key)
-				desired_path = mapping_outputs[desired_key]
-				with open(desired_path, 'a') as chr_outfi:
-					chr_outfi.write(desired_output)
+		for chromosome, snp_list in self.ordered_snpmap.mapping.iteritems():
+		#	print '\n\n\n\n'
+		#	print '>>>>>>>>>>>>>>>>>>>>'
+		#	print chromosome
+
+			target_key = '{}_dir'.format(chromosome)
+			target_path = mapping_outputs[target_key]
+		#
+		# 	print 'target path: ', target_path
+		#
+		# 	for sample in self.processed_samples:
+		# 		if chromosome == 'chrY':
+		# 			print 'Working on sample: ', sample.get_sampleid()
+		# 			print 'Sample Mapping for {}: '.format(chromosome)
+
+		# ## Loop over all samples we have, output to the respective chromosome PED file...
+		# for sample in self.processed_samples:
+		# 	print 'Working on sample: ', sample.get_sampleid()
+		# 	## Create the string of all SNP base pair mutation values in this chromosome
+		# 	mutation_string = ''
+		# 	for chr_key, snplist_val in sample.mapping.iteritems():
+		# 		print 'chr_key', chr_key
+		# 		print len(snplist_val)
+		# 		for snp_tuple in snplist_val:
+		# 			print 'tuple: ', snp_tuple
+		# 			mutation_string += '{}\t{}\t'.format(snp_tuple[1][0], snp_tuple[1][1])
+		#
+		# 		print 'Mutation string: ', mutation_string
+		#
+		# 		desired_output = '{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+		# 			sample.get_familyid(),
+		# 			sample.get_sampleid(),
+		# 			sample.get_mother(),
+		# 			sample.get_father(),
+		# 			sample.get_sex(),
+		# 			sample.get_phenotype(),
+		# 			mutation_string)
+		# 		desired_key = '{}_dir'.format(chr_key)
+		# 		desired_path = mapping_outputs[desired_key]
+		# 		with open(desired_path, 'a') as chr_outfi:
+		# 			chr_outfi.write(desired_output)
 
 def main():
 	try:
